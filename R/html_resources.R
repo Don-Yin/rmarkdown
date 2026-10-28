@@ -308,6 +308,7 @@ discover_rmd_resources <- function(rmd_file, discover_single_resource) {
   # check for knitr child documents in R Markdown documents
   if (tolower(xfun::file_ext(rmd_file)) %in% c("qmd", "rmd")) {
     chunk_lines <- gregexpr(knitr::all_patterns$md$chunk.begin, rmd_content, perl = TRUE)
+    chunk_ends <- grep(knitr::all_patterns$md$chunk.end, rmd_content)
     for (idx in seq_along(chunk_lines)) {
       chunk_line <- chunk_lines[idx][[1]]
       if (is.na(chunk_line) || chunk_line < 0) next
@@ -316,6 +317,13 @@ discover_rmd_resources <- function(rmd_file, discover_single_resource) {
         rmd_content[idx], chunk_start,
         chunk_start + attr(chunk_line, "capture.length", exact = TRUE) - 2
       )
+      chunk_end <- chunk_ends[which(chunk_ends > idx)[1]]
+      if (!is.na(chunk_end) && chunk_end > idx + 1) {
+        code <- rmd_content[seq.int(idx + 1, chunk_end - 1)]
+        engine <- sub("[ ,].*$", "", chunk_text)
+        child <- knitr::partition_chunk(engine, code)$options$child
+        if (is.character(child)) lapply(child, discover_render_resource)
+      }
       for (child_expr in c("\\bchild\\s*=\\s*(?:c\\()?'([^']+)'\\)?", "\\bchild\\s*=\\s*(?:c\\()?\"([^\"]+)\"\\)?")) {
         child_match <- gregexpr(child_expr, chunk_text, perl = TRUE)[[1]]
         if (child_match > 0) {
